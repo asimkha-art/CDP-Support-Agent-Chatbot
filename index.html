@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CDP Support Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to right, #f5f7fa, #c3cfe2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #chat-container {
+            width: 400px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        #chat-box {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #fafafa;
+            border-radius: 8px;
+        }
+        .message {
+            margin: 5px 0;
+            max-width: 80%;
+            padding: 10px;
+            border-radius: 15px;
+            display: inline-block;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background: #007bff;
+            color: white;
+            text-align: right;
+            margin-left: auto;
+        }
+        .bot-response {
+            background: #e1f5e1;
+            color: black;
+        }
+        #message-form {
+            display: flex;
+        }
+        #message-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #send-button {
+            padding: 10px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #send-button:hover {
+            background: #0056b3;
+        }
+        .quick-reply-container {
+            margin-top: 10px;
+        }
+        .quick-reply {
+            background: #f1f1f1;
+            border: none;
+            padding: 8px 12px;
+            margin: 5px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .quick-reply:hover {
+            background: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <h3>CDP Support Chatbot</h3>
+        <div id="chat-box"></div>
+        <form id="message-form">
+            <input type="text" id="message-input" placeholder="Type your message here..." required>
+            <button type="submit" id="send-button">Send</button>
+        </form>
+        <div class="quick-reply-container" id="quick-replies">
+            <!-- Quick replies and recent queries will be added here dynamically -->
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const quickRepliesContainer = document.getElementById('quick-replies');
+
+        const maxRecentQueries = 3;
+        let recentQueryList = [];
+
+        const defaultQuickReplies = [
+            "How do I set up a new source in Segment?",
+            "How to integrate mParticle?",
+            "Audience creation in Lytics"
+        ];
+
+        // Function to render quick replies
+        function renderQuickReplies() {
+            quickRepliesContainer.innerHTML = '';
+
+            // Add recent queries
+            recentQueryList.forEach(query => {
+                const button = document.createElement('button');
+                button.textContent = query;
+                button.className = 'quick-reply';
+                button.onclick = () => sendMessage(query);
+                quickRepliesContainer.appendChild(button);
+            });
+
+            // Add default quick replies
+            defaultQuickReplies.forEach(reply => {
+                const button = document.createElement('button');
+                button.textContent = reply;
+                button.className = 'quick-reply';
+                button.onclick = () => sendMessage(reply);
+                quickRepliesContainer.appendChild(button);
+            });
+        }
+
+        // Function to add a message to the chat box
+        function addMessage(text, className) {
+            const message = document.createElement('div');
+            message.textContent = text;
+            message.className = `message ${className}`;
+            chatBox.appendChild(message);
+            chatBox.scrollTop = chatBox.scrollHeight; // Scroll to the bottom
+        }
+
+        // Function to update recent queries
+        function updateRecentQueries(query) {
+            if (!recentQueryList.includes(query)) {
+                recentQueryList.unshift(query);
+                if (recentQueryList.length > maxRecentQueries) {
+                    recentQueryList.pop();
+                }
+                renderQuickReplies();
+            }
+        }
+
+        // Function to handle sending messages
+        async function sendMessage(userMessage) {
+            addMessage(userMessage, 'user-message');
+            messageInput.value = ''; // Clear the input field
+            updateRecentQueries(userMessage);
+
+            // Show typing indicator
+            const typingMessage = document.createElement('div');
+            typingMessage.textContent = 'Bot is typing...';
+            typingMessage.className = 'message bot-response';
+            chatBox.appendChild(typingMessage);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                // Simulate typing delay
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                // Send request to backend
+                const response = await fetch('http://127.0.0.1:5000/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: userMessage })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server responded with status ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Remove the typing indicator
+                chatBox.removeChild(typingMessage);
+
+                // Display the bot's response
+                if (data.reply) {
+                    data.reply.forEach(line => addMessage(line.trim(), 'bot-response'));
+                } else {
+                    addMessage("Sorry, I couldn't find relevant information for your query.", 'bot-response');
+                }
+            } catch (error) {
+                console.error('Error communicating with backend:', error);
+                chatBox.removeChild(typingMessage);
+                addMessage('Error: Could not reach the server. Please try again later.', 'bot-response');
+            }
+        }
+
+        // Form submission handling
+        messageForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const userMessage = messageInput.value.trim();
+            if (userMessage) {
+                sendMessage(userMessage);
+            }
+        });
+
+        // Initial render of quick replies
+        renderQuickReplies();
+    </script>
+</body>
+</html>
